@@ -71,11 +71,23 @@ import { catchError, of, Subscription, tap, delay } from 'rxjs';
                   [class.bg-slate-700]="isDragging"
                 >
                   <input type="file" #fileInput class="hidden" accept=".xlsx" (change)="onFileSelected($event)">
-                  <div class="w-16 h-16 mx-auto mb-4 bg-slate-700 rounded-full flex items-center justify-center group-hover:bg-blue-900/50 transition-colors">
-                    <svg class="text-slate-400 group-hover:text-blue-400" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                  </div>
-                  <h3 class="text-lg font-medium text-slate-200 mb-2">Tải lên danh sách Mã số thuế (XLSX)</h3>
-                  <p class="text-slate-400 text-sm">Kéo thả file hoặc nhấn để chọn (Tối đa 20MB)</p>
+                  
+                  <ng-container *ngIf="!selectedFile">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-slate-700 rounded-full flex items-center justify-center group-hover:bg-blue-900/50 transition-colors">
+                      <svg class="text-slate-400 group-hover:text-blue-400" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-slate-200 mb-2">Tải lên danh sách Mã số thuế (XLSX)</h3>
+                    <p class="text-slate-400 text-sm">Kéo thả file hoặc nhấn để chọn (Tối đa 20MB)</p>
+                  </ng-container>
+
+                  <ng-container *ngIf="selectedFile">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-green-900/30 rounded-full flex items-center justify-center text-green-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-slate-200 mb-2">{{ selectedFile.name }}</h3>
+                    <p class="text-slate-400 text-sm">Dung lượng: {{ (selectedFile.size / 1024).toFixed(2) }} KB</p>
+                    <p class="text-blue-400 text-sm mt-2 hover:underline">Nhấn hoặc kéo thả file khác để thay đổi</p>
+                  </ng-container>
                 </div>
                 
                 <div class="mt-8 text-center">
@@ -110,25 +122,25 @@ import { catchError, of, Subscription, tap, delay } from 'rxjs';
                     <div class="w-6 h-6 rounded-full flex items-center justify-center mr-3" [ngClass]="step1 ? 'bg-green-500 text-white' : 'border-2 border-slate-500'">
                       <svg *ngIf="step1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <span>Đọc dữ liệu từ file '{{ selectedFile?.name || "danh_sach_mst.xlsx" }}'</span>
+                    <span>1. Đọc và xác thực dữ liệu từ file...</span>
                   </div>
                   <div class="flex items-center text-slate-300">
                     <div class="w-6 h-6 rounded-full flex items-center justify-center mr-3" [ngClass]="step2 ? 'bg-green-500 text-white' : 'border-2 border-slate-500'">
                       <svg *ngIf="step2" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <span>Xác thực định dạng Excel</span>
+                    <span>2. Xác định dữ liệu cần xử lý</span>
                   </div>
                   <div class="flex items-center text-slate-300">
                     <div class="w-6 h-6 rounded-full flex items-center justify-center mr-3" [ngClass]="step3 ? 'bg-green-500 text-white' : 'border-2 border-slate-500'">
                       <svg *ngIf="step3" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <span>Kiểm tra kết nối API Tổng cục Thuế...</span>
+                    <span>3. Xử lý tên doanh nghiệp viết tắt</span>
                   </div>
                   <div class="flex items-center text-slate-300">
                     <div class="w-6 h-6 rounded-full flex items-center justify-center mr-3" [ngClass]="step4 ? 'bg-green-500 text-white' : 'border-2 border-slate-500'">
                       <svg *ngIf="step4" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <span>Đang đối chiếu dữ liệu... ({{ progress }}%)</span>
+                    <span>4. Hoàn tất và xử lý và tạo file kết quả <span *ngIf="!step4">({{ progress }}%)</span></span>
                   </div>
                 </div>
 
@@ -162,25 +174,25 @@ import { catchError, of, Subscription, tap, delay } from 'rxjs';
                     <div class="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center mr-3">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <span>Đọc dữ liệu từ file '{{ selectedFile?.name || "danh_sach_mst.xlsx" }}'</span>
+                    <span>1. Đọc và xác thực dữ liệu từ file...</span>
                   </div>
                   <div class="flex items-center text-slate-300">
                     <div class="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center mr-3">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <span>Xác thực định dạng Excel</span>
+                    <span>2. Xác định dữ liệu cần xử lý</span>
                   </div>
                   <div class="flex items-center text-slate-300">
                     <div class="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center mr-3">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <span>Kiểm tra kết nối API Tổng cục Thuế...</span>
+                    <span>3. Xử lý tên doanh nghiệp viết tắt</span>
                   </div>
                   <div class="flex items-center text-slate-300">
                     <div class="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center mr-3">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <span>Hoàn tất đối chiếu dữ liệu ({{ totalRows }}/{{ totalRows }} dòng)</span>
+                    <span>4. Hoàn tất và xử lý và tạo file kết quả</span>
                   </div>
                 </div>
 
