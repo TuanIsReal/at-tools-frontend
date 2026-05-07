@@ -1,11 +1,12 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { PasswordService } from '../../services/password.service';
 import { FileUploadService } from '../../services/file-upload.service';
+import { SocketIOService, ProgressMessage } from '../../services/socket-io.service';
 import { ToolListComponent } from '../../components/tool-list/tool-list.component';
-import { HttpEventType } from '@angular/common/http';
-import { catchError, of, Subscription, tap, delay } from 'rxjs';
+import { HttpEventType, HttpResponse } from '@angular/common/http';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-check-tax-number',
@@ -61,6 +62,12 @@ import { catchError, of, Subscription, tap, delay } from 'rxjs';
               
               <!-- STATE: UPLOAD -->
               <div *ngIf="state === 'UPLOAD'" class="w-full">
+                <!-- Error message -->
+                <div *ngIf="errorMessage" class="mb-4 bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 flex-shrink-0"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                  <span>{{ errorMessage }}</span>
+                </div>
+
                 <div 
                   class="border-2 border-dashed border-slate-600 rounded-xl p-12 text-center hover:border-blue-500 hover:bg-slate-700/30 transition-all cursor-pointer group"
                   (dragover)="onDragOver($event)"
@@ -92,11 +99,11 @@ import { catchError, of, Subscription, tap, delay } from 'rxjs';
                 
                 <div class="mt-8 text-center">
                   <button 
-                    [disabled]="!selectedFile"
+                    [disabled]="!selectedFile || isUploading"
                     (click)="startUpload()"
                     class="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-medium py-3 px-12 rounded-full shadow-lg transition-all"
                   >
-                    Upload Tax Excel
+                    {{ isUploading ? 'Đang tải lên...' : 'Upload Tax Excel' }}
                   </button>
                 </div>
               </div>
@@ -221,30 +228,40 @@ import { catchError, of, Subscription, tap, delay } from 'rxjs';
     }
   `]
 })
-export class CheckTaxNumberComponent implements OnInit {
+export class CheckTaxNumberComponent implements OnInit, OnDestroy {
   private passwordService = inject(PasswordService);
   private fileUploadService = inject(FileUploadService);
+  private socketService = inject(SocketIOService);
 
   password: string | null = null;
   state: 'UPLOAD' | 'PROCESSING' | 'SUCCESS' = 'UPLOAD';
   
   isDragging = false;
   selectedFile: File | null = null;
+  errorMessage: string | null = null;
+  isUploading = false;
   
-  // Progress mock state
+  // Progress state
   progress = 0;
-  totalRows = 480;
+  totalRows = 0;
   processedRows = 0;
-  validRows = 465;
-  errorRows = 15;
+  validRows = 0;
+  errorRows = 0;
+  downloadUrl: string | null = null;
   
   step1 = false;
   step2 = false;
   step3 = false;
   step4 = false;
 
+  private socketSub: Subscription | null = null;
+
   ngOnInit() {
     this.password = this.passwordService.getPassword();
+  }
+
+  ngOnDestroy() {
+    this.cleanupSocket();
   }
 
   onDragOver(event: DragEvent) {
@@ -265,8 +282,9 @@ export class CheckTaxNumberComponent implements OnInit {
       const file = event.dataTransfer.files[0];
       if (file.name.endsWith('.xlsx')) {
         this.selectedFile = file;
+        this.errorMessage = null;
       } else {
-        alert('Vui lòng chọn file định dạng .xlsx');
+        this.errorMessage = 'Vui lòng chọn file định dạng .xlsx';
       }
     }
   }
@@ -275,63 +293,114 @@ export class CheckTaxNumberComponent implements OnInit {
     const file = event.target.files[0];
     if (file && file.name.endsWith('.xlsx')) {
       this.selectedFile = file;
+      this.errorMessage = null;
     }
   }
 
   startUpload() {
     if (!this.selectedFile) return;
     
-    this.state = 'PROCESSING';
-    this.resetProgress();
+    this.errorMessage = null;
+    this.isUploading = true;
     
-    // In a real app, we would subscribe to this.fileUploadService.uploadFile
-    // But since there's no backend, we simulate the progress events
-    this.simulateProgress();
+    this.fileUploadService.uploadFile(this.selectedFile).subscribe({
+      next: (event) => {
+        if (event.type === HttpEventType.Response) {
+          this.isUploading = false;
+          const body = event.body;
+          
+          if (body && body.code === 201) {
+            this.errorMessage = "Mật khẩu sai. Vui lòng kiểm tra lại.";
+          } else if (body && body.code === 202) {
+            this.errorMessage = "File không đúng định dạng. Vui lòng tải lên file mẫu chuẩn.";
+          } else if (body && body.code === 200) {
+            this.state = 'PROCESSING';
+            this.resetProgress();
+            this.connectAndListenSocket();
+          } else {
+            this.errorMessage = "Lỗi không xác định từ server.";
+          }
+        }
+      },
+      error: (err) => {
+        this.isUploading = false;
+        this.errorMessage = "Lỗi kết nối đến server.";
+        console.error('Upload error:', err);
+      }
+    });
   }
 
-  simulateProgress() {
-    this.step1 = true;
+  connectAndListenSocket() {
+    this.socketService.connect(this.password);
     
-    setTimeout(() => {
-      this.step2 = true;
-    }, 1000);
-    
-    setTimeout(() => {
-      this.step3 = true;
-    }, 2000);
-    
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      if (currentProgress < 100) {
-        currentProgress += 5;
-        this.progress = currentProgress;
-        this.processedRows = Math.floor((currentProgress / 100) * this.totalRows);
-      } else {
-        clearInterval(interval);
+    this.socketSub = this.socketService.getMessages().subscribe((msg: ProgressMessage) => {
+      if (msg.step >= 1) {
+        this.step1 = true;
+      }
+      if (msg.step >= 2) {
+        this.step2 = true;
+        if (msg.totalRows) this.totalRows = msg.totalRows;
+      }
+      if (msg.step === 3) {
+        this.step3 = true;
+        if (msg.processedRows !== undefined && this.totalRows > 0) {
+          this.processedRows = msg.processedRows;
+          this.progress = Math.floor((this.processedRows / this.totalRows) * 100);
+        }
+      }
+      if (msg.step === 4) {
+        this.step3 = true;
         this.step4 = true;
+        this.progress = 100;
+        this.processedRows = this.totalRows;
+        
+        if (msg.validRows !== undefined) this.validRows = msg.validRows;
+        if (msg.errorRows !== undefined) this.errorRows = msg.errorRows;
+        if (msg.downloadUrl) this.downloadUrl = msg.downloadUrl;
+        
+        // Timeout for smoother UI transition to SUCCESS state
         setTimeout(() => {
           this.state = 'SUCCESS';
+          this.cleanupSocket();
         }, 500);
       }
-    }, 200); // Takes about 4 seconds total
+    });
+  }
+
+  cleanupSocket() {
+    if (this.socketSub) {
+      this.socketSub.unsubscribe();
+      this.socketSub = null;
+    }
+    this.socketService.disconnect();
   }
 
   resetProgress() {
     this.progress = 0;
+    this.totalRows = 0;
     this.processedRows = 0;
+    this.validRows = 0;
+    this.errorRows = 0;
     this.step1 = false;
     this.step2 = false;
     this.step3 = false;
     this.step4 = false;
+    this.downloadUrl = null;
   }
 
   download() {
-    alert('Đang tải file...');
+    if (this.downloadUrl) {
+      // Depending on API, you might need an absolute URL.
+      window.open(this.downloadUrl, '_blank');
+    } else {
+      alert('Không tìm thấy đường dẫn tải file.');
+    }
   }
 
   reset() {
     this.state = 'UPLOAD';
     this.selectedFile = null;
+    this.errorMessage = null;
     this.resetProgress();
   }
 }

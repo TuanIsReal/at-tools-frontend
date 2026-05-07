@@ -55,7 +55,7 @@ import { ToolListComponent } from '../../components/tool-list/tool-list.componen
             (click)="savePassword()"
             class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg shadow-lg hover:shadow-blue-500/25 transition-all transform hover:-translate-y-0.5"
           >
-            Truy cập
+            Lưu mật khẩu
           </button>
           
           <div *ngIf="savedMessage" class="mt-4 text-center text-sm text-green-400 animate-pulse">
